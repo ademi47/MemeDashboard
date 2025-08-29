@@ -2,6 +2,7 @@ import React from "react";
 import MemeDashboardClient from "@/components/MemeDashboardClient";
 export const dynamic = "force-dynamic";
 export const revalidate = 0; // revalidate every 5 minutes
+export const fetchCache = "force-no-store"; // Next 14/15 compatible
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""; // e.g., http://localhost:8080
 const REPORT_ENDPOINT = `${API_BASE}/memes/top-24h`;
