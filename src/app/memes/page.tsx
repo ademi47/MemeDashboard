@@ -1,11 +1,7 @@
-import React from "react";
-import MemeDashboardClient from "@/components/MemeDashboardClient";
-export const dynamic = "force-dynamic";
-export const revalidate = 0; // revalidate every 5 minutes
-export const fetchCache = "force-no-store"; // Next 14/15 compatible
+"use client";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""; // e.g., http://localhost:8080
-const REPORT_ENDPOINT = `${API_BASE}/memes/top-24h`;
+import React, { useEffect, useState } from "react";
+import MemeDashboardClient from "@/components/MemeDashboardClient";
 
 export type MemeItem = {
   id: string;
@@ -19,26 +15,58 @@ export type MemeItem = {
   thumbnail?: string | null;
 };
 
-async function fetchTop24h(): Promise<MemeItem[]> {
-  // Server-side fetch with ISR
-  const res = await fetch(REPORT_ENDPOINT, { next: { revalidate } });
-  if (!res.ok) {
-    console.error("Failed to fetch memes/top-24h:", res.status, res.statusText);
-    return [];
-  }
-  return (await res.json()) as MemeItem[];
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? ""; // e.g., https://memecrawler.duckdns.org
+const REPORT_ENDPOINT = API_BASE ? `${API_BASE}/memes/top-24h` : "";
 
-export default async function Page() {
-  const initialData = await fetchTop24h();
+export default function Page() {
+  const [items, setItems] = useState<MemeItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      if (!REPORT_ENDPOINT) {
+        setError("NEXT_PUBLIC_API_BASE is not set");
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(REPORT_ENDPOINT, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as MemeItem[];
+        if (!cancelled) setItems(data);
+      } catch (e) {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Fetch failed");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <div className="p-6 max-w-7xl mx-auto">
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"></header>
-        User Dashboard: Shows Active Top Reddit Posts
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between" />
+        <div className="mb-2">
+          User Dashboard: Shows Active Top Reddit Posts
+        </div>
+        {loading && <p>Loading…</p>}
+        {error && <p className="text-red-500">Error: {error}</p>}
       </div>
+
+      {/* Pass client-fetched data to our client widget */}
       <MemeDashboardClient
-        initialItems={initialData}
+        initialItems={items}
         reportEndpoint={REPORT_ENDPOINT}
       />
     </div>
